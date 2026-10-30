@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LOFTBEDS: Mebellar ekosistemasi (demo)</title>
+<meta name="description" content="LOFTBEDS: viloyatingizdagi ustalar va fabrikalardan mebel buyurtma qiling, nasiyaga oling.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛏</text></svg>">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<style type="text/tailwindcss">
+  @layer components {
+    .inp { @apply w-full border border-slate-300 rounded-lg p-3 bg-white outline-none focus:ring-2 focus:ring-orange-500; }
+    .lbl { @apply block text-sm font-medium text-slate-700 mb-1; }
+    .btn { @apply w-full text-white py-3 rounded-lg font-bold transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-orange-500; }
+    .btn-o { @apply bg-orange-600 hover:bg-orange-700; }
+    .btn-d { @apply bg-slate-800 hover:bg-slate-900; }
+    .modal { @apply fixed inset-0 z-50 hidden items-center justify-center p-4; }
+    .modal.open { @apply flex; }
+    .shade { @apply absolute inset-0 bg-black/60 backdrop-blur-sm; }
+  }
+</style>
+<style>
+  .chart-container{position:relative;width:100%;max-width:600px;margin:auto;height:300px}
+  .step-active{border-color:#ea580c;color:#ea580c;font-weight:700}
+  .step-done{border-color:#10b981;color:#10b981}
+  .fade-in{animation:fi .3s ease-out}@keyframes fi{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+
+<nav class="sticky top-0 z-40 bg-white/95 backdrop-blur shadow-sm border-b border-slate-200">
+  <div class="max-w-7xl mx-auto px-4 flex justify-between h-16 items-center">
+    <a href="#hero" class="text-2xl font-bold text-slate-800">LOFT<span class="text-orange-600">BEDS</span></a>
+    <div class="flex items-center gap-2 sm:gap-4">
+      <a href="#analysis" class="hidden md:block text-sm font-medium text-slate-600 hover:text-orange-600">Tahlil</a>
+      <a href="#prototype" class="hidden md:block text-sm font-medium text-slate-600 hover:text-orange-600">Do'kon</a>
+      <a href="#gallery" class="hidden md:block text-sm font-medium text-slate-600 hover:text-orange-600">Galereya</a>
+      <button data-open="artisanModal" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-700">🤝 Hamkorlik</button>
+      <button id="cartBtn" aria-label="Savatni ochish" class="relative p-2 text-2xl">🛒
+        <span id="cartCount" class="hidden absolute top-0 right-0 text-xs font-bold text-white bg-red-600 rounded-full px-1.5 py-0.5">0</span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<a href="https://t.me/sherxanoff" target="_blank" rel="noopener" class="fixed bottom-6 right-6 z-30 bg-blue-500 hover:bg-blue-600 text-white px-5 py-4 rounded-full shadow-2xl font-bold" aria-label="Telegramda yozish">💬 <span class="hidden sm:inline">Telegramda yozish</span></a>
+
+<!-- Savat -->
+<div id="cartDrawer" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true" aria-labelledby="cartTitle">
+  <div class="absolute inset-0 bg-black/50" data-close="cartDrawer"></div>
+  <div class="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl flex flex-col">
+    <div class="p-4 border-b flex justify-between items-center bg-slate-50">
+      <h2 id="cartTitle" class="text-lg font-bold">🛒 Savatingiz</h2>
+      <button data-close="cartDrawer" aria-label="Yopish" class="text-slate-500 hover:text-red-500 text-2xl">&times;</button>
+    </div>
+    <div id="cartItems" class="flex-1 overflow-y-auto p-4 space-y-3"></div>
+    <div class="p-6 border-t bg-slate-50">
+      <div class="flex justify-between mb-4"><span>Jami:</span><span id="cartTotal" class="text-xl font-bold text-orange-600">0 so'm</span></div>
+      <button id="checkoutBtn" disabled class="btn btn-d disabled:opacity-50 disabled:cursor-not-allowed">Rasmiylashtirish</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hamkorlik -->
+<div id="artisanModal" class="modal overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="artTitle">
+  <div class="shade" data-close="artisanModal"></div>
+  <form id="artisanForm" class="bg-white rounded-2xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden my-8" novalidate>
+    <div class="bg-slate-900 text-white p-6 flex justify-between items-start">
+      <div><h3 id="artTitle" class="font-bold text-xl">🤝 Hamkorlik arizasi</h3>
+      <p class="text-slate-300 text-sm">Ustalar va fabrikalar uchun.</p></div>
+      <button type="button" data-close="artisanModal" aria-label="Yopish" class="text-2xl text-white/70 hover:text-white">&times;</button>
+    </div>
+    <div class="p-6 space-y-4">
+      <div class="flex bg-slate-100 p-1 rounded-lg" role="group" aria-label="Hamkor turi">
+        <button type="button" id="btn-master" data-ptype="master" class="flex-1 py-2 text-sm font-bold rounded-md bg-white shadow-sm">👨‍🔧 Yakka usta</button>
+        <button type="button" id="btn-factory" data-ptype="factory" class="flex-1 py-2 text-sm font-bold rounded-md text-slate-500">🏭 Fabrika</button>
+      </div>
+      <div><label class="lbl" for="artisanName">Ism familiya</label><input class="inp" id="artisanName" autocomplete="name" required minlength="3"></div>
+      <div id="factoryField" class="hidden"><label class="lbl" for="factoryName">Korxona nomi</label><input class="inp" id="factoryName" placeholder="Masalan: Sherxan Mebel MChJ"></div>
+      <div><label class="lbl" for="artisanPhone">Telefon (Telegram bor)</label><input class="inp" id="artisanPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+998 90 123 45 67" required></div>
+      <div><label class="lbl" for="artisanRegion">Hudud</label><select class="inp" id="artisanRegion"></select></div>
+      <div><label class="lbl" for="artisanProduct">Nima ishlab chiqarasiz?</label>
+        <select class="inp" id="artisanProduct">
+          <option value="loft">Loft uslubidagi mebel</option><option value="soft">Yumshoq mebel</option>
+          <option value="kitchen">Oshxona mebeli</option><option value="office">Ofis jihozlari</option><option value="full">To'liq sikl</option>
+        </select></div>
+      <input type="text" id="hp" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
+      <p id="artisanErr" class="text-sm text-red-600" role="alert"></p>
+      <button class="btn bg-blue-600 hover:bg-blue-700" id="artisanSubmit">📨 Ariza yuborish</button>
+    </div>
+  </form>
+</div>
+
+<!-- Checkout -->
+<div id="checkoutModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="coTitle">
+  <div class="shade" data-close="checkoutModal"></div>
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+      <h3 id="coTitle" class="font-bold text-lg">Buyurtmani rasmiylashtirish</h3>
+      <button data-close="checkoutModal" aria-label="Yopish" class="text-2xl text-white/70 hover:text-white">&times;</button>
+    </div>
+    <div class="flex border-b bg-slate-50">
+      <div id="tab1" class="flex-1 p-3 text-center text-sm border-b-2">1. Ma'lumot</div>
+      <div id="tab2" class="flex-1 p-3 text-center text-sm border-b-2">2. Manzil</div>
+      <div id="tab3" class="flex-1 p-3 text-center text-sm border-b-2">3. To'lov</div>
+    </div>
+    <div class="p-6 overflow-y-auto">
+      <div id="s1" class="fade-in space-y-4">
+        <h4 class="text-xl font-bold">Siz bilan bog'lanishimiz uchun</h4>
+        <div><label class="lbl" for="custName">Ismingiz</label><input class="inp" id="custName" autocomplete="name"></div>
+        <div><label class="lbl" for="custPhone">Telefon</label><input class="inp" id="custPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+998 90 123 45 67"></div>
+        <p class="stepErr text-sm text-red-600" role="alert"></p>
+        <button data-go="2" class="btn btn-o">Davom etish</button>
+      </div>
+      <div id="s2" class="hidden fade-in space-y-4">
+        <h4 class="text-xl font-bold">Yetkazib berish manzili</h4>
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="lbl" for="checkoutRegion">Viloyat</label><select class="inp" id="checkoutRegion"></select></div>
+          <div><label class="lbl" for="custDistrict">Tuman</label><input class="inp" id="custDistrict"></div>
+        </div>
+        <div><label class="lbl" for="custAddress">Aniq manzil (mo'ljal)</label><input class="inp" id="custAddress" autocomplete="street-address"></div>
+        <p class="stepErr text-sm text-red-600" role="alert"></p>
+        <button data-go="3" class="btn btn-o">Davom etish</button>
+        <button data-go="1" class="w-full text-slate-500 py-2 text-sm hover:text-slate-800">Ortga qaytish</button>
+      </div>
+      <div id="s3" class="hidden fade-in">
+        <h4 class="text-xl font-bold mb-4">To'lov usuli</h4>
+        <div class="space-y-3 mb-6" id="payOptions">
+          <label class="flex items-center p-4 border rounded-xl cursor-pointer has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50"><input type="radio" name="payment" value="cash" checked class="w-5 h-5 accent-orange-600"><span class="ml-3"><b class="block">💵 Naqd pul</b><span class="text-sm text-slate-500">Mahsulotni olgach to'lanadi</span></span></label>
+          <label class="flex items-center p-4 border rounded-xl cursor-pointer has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50"><input type="radio" name="payment" value="nasiya" class="w-5 h-5 accent-orange-600"><span class="ml-3"><b class="block">📉 Nasiya (bo'lib to'lash)</b><span class="text-sm text-slate-500">Menejer shartlarni tasdiqlaydi</span></span></label>
+          <label class="flex items-center p-4 border rounded-xl cursor-pointer has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50"><input type="radio" name="payment" value="online" class="w-5 h-5 accent-orange-600"><span class="ml-3"><b class="block">💳 Click / Payme <span class="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">tez kunda</span></b><span class="text-sm text-slate-500">Demo: buyurtma yuboriladi, to'lov menejer orqali tasdiqlanadi</span></span></label>
+        </div>
+        <div id="installmentCalc" class="hidden bg-slate-800 text-white p-5 rounded-xl mb-6">
+          <h5 class="font-bold mb-3">🧮 Bo'lib to'lashni hisoblash</h5>
+          <div class="grid grid-cols-3 gap-2 mb-4" role="group" aria-label="Muddat">
+            <button type="button" data-m="3" class="inst-btn py-2 rounded-lg font-bold border border-slate-600">3 oy</button>
+            <button type="button" data-m="6" class="inst-btn py-2 rounded-lg font-bold border border-slate-600">6 oy</button>
+            <button type="button" data-m="12" class="inst-btn py-2 rounded-lg font-bold border border-slate-600">12 oy</button>
+          </div>
+          <div class="bg-slate-900 p-3 rounded-lg flex justify-between"><span class="text-sm text-slate-400">Oyiga:</span><span id="monthlyPayment" class="text-xl font-black text-orange-400">0 so'm</span></div>
+        </div>
+        <div class="bg-orange-50 p-4 rounded-lg border border-orange-100 mb-6">
+          <div class="flex justify-between font-bold mb-1"><span>Jami:</span><span id="checkoutTotal" class="text-orange-600 text-xl">0 so'm</span></div>
+          <p class="text-xs text-slate-600">Yakuniy narx va shartlarni menejer tasdiqlaydi.</p>
+        </div>
+        <p id="orderErr" class="text-sm text-red-600 mb-2" role="alert"></p>
+        <button id="mainSubmitBtn" class="btn bg-green-600 hover:bg-green-700">Buyurtmani tasdiqlash</button>
+        <button data-go="2" class="w-full text-slate-500 py-2 text-sm mt-2">Ortga qaytish</button>
+      </div>
+      <div id="sOk" class="hidden fade-in text-center py-10">
+        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">🎉</div>
+        <h2 class="text-2xl font-bold mb-2">Buyurtma qabul qilindi!</h2>
+        <p class="text-slate-600 mb-6">Menejer siz bilan tez orada bog'lanadi.</p>
+        <p class="text-sm text-slate-500 mb-8">Buyurtma raqami: <span id="orderNo" class="font-mono font-bold text-slate-800"></span></p>
+        <button data-close="checkoutModal" class="btn btn-d max-w-xs mx-auto block">Yopish</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="hero" class="pt-12 pb-16 bg-gradient-to-br from-orange-50 to-slate-100">
+  <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center gap-10">
+    <div class="md:w-1/2 text-center md:text-left">
+      <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 leading-tight mb-6">Mebel biznesi:<br><span class="text-orange-600">hamkorlik va savdo.</span></h1>
+      <p class="text-lg text-slate-600 mb-8">LOFTBEDS hududiy chegaralarni olib tashlaydi: usta bo'lsangiz mahsulotingizni soting, xaridor bo'lsangiz yaqin joydan arzon oling.</p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
+        <button data-open="artisanModal" class="px-8 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900">Hamkor bo'lish 🤝</button>
+        <a href="#prototype" class="px-8 py-3 bg-white text-orange-600 font-bold border-2 border-orange-600 rounded-xl hover:bg-orange-50 text-center">Do'konga kirish</a>
+      </div>
+    </div>
+    <div class="md:w-1/2 w-full bg-white p-6 rounded-2xl shadow-xl border">
+      <img src="https://placehold.co/600x400/f1f5f9/475569?text=Mebel+Factory+Process" alt="Mebel ishlab chiqarish jarayoni (namuna rasm)" class="w-full h-64 object-cover rounded-lg mb-4">
+      <div class="grid grid-cols-2 gap-4 text-center">
+        <div class="bg-slate-50 p-3 rounded-lg border"><div class="text-2xl">🏭</div><div class="text-xs font-bold">Korxonalar</div><div class="text-xs text-slate-500">Katta hajmdagi buyurtmalar</div></div>
+        <div class="bg-orange-50 p-3 rounded-lg border border-orange-200"><div class="text-2xl">👨‍🔧</div><div class="text-xs font-bold text-orange-800">Ustalar</div><div class="text-xs text-slate-500">Yakka buyurtmalar</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="analysis" class="py-16 bg-white">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="text-center mb-12"><h2 class="text-3xl font-bold">Startap tahlili</h2>
+    <p class="mt-4 text-slate-600 max-w-2xl mx-auto">Logistika xarajatini tejash va mahalliy ishlab chiqarishni qo'llab-quvvatlash. (Demo qiymatlar)</p></div>
+    <div class="grid lg:grid-cols-2 gap-12">
+      <div class="bg-slate-50 rounded-2xl p-6 border">
+        <h3 class="text-xl font-bold mb-4">📊 Narx taqqoslami (so'm)</h3>
+        <div class="chart-container"><canvas id="logisticsChart" role="img" aria-label="Toshkentdan buyurtma va mahalliy buyurtma narxi taqqoslami"></canvas></div>
+        <p class="text-sm text-slate-600 mt-4 text-center">Yetkazish muddati: Toshkentdan ~10 kun, mahalliy ustadan ~2 kun.</p>
+      </div>
+      <div class="bg-indigo-900 text-white rounded-2xl p-8 flex flex-col justify-center">
+        <h3 class="text-2xl font-bold mb-4">Sifat nazorati</h3>
+        <p class="mb-6 text-indigo-200 text-sm">Mijozlar ishonchi uchun hamkorlarni tekshiramiz. «Tekshirilgan» belgisi olgan korxonaga buyurtma ko'proq keladi.</p>
+        <button data-open="artisanModal" class="bg-white text-indigo-900 px-6 py-3 rounded-lg font-bold hover:bg-indigo-50 w-fit">📝 Anketani to'ldirish</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="prototype" class="py-16 bg-slate-50 border-t">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="text-center mb-10"><h2 class="text-3xl font-bold">LOFTBEDS Market</h2>
+    <p class="mt-4 text-slate-600">Hududingizni tanlang va nasiyadan foydalaning.</p></div>
+    <div class="flex flex-col md:flex-row gap-8">
+      <aside class="w-full md:w-1/4 bg-white p-6 rounded-2xl border h-fit">
+        <label for="regionSelect" class="font-bold text-lg mb-3 block">Viloyat</label>
+        <select id="regionSelect" class="inp mb-6"></select>
+        <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+          <h4 class="font-bold text-blue-800 text-sm mb-2">Korxonangiz bormi?</h4>
+          <p class="text-xs text-blue-700 mb-2">Mahsulotlaringiz shu yerda turishi mumkin.</p>
+          <button data-open="artisanModal" class="w-full bg-blue-600 text-white text-xs py-2 rounded font-bold hover:bg-blue-700">Hamkorlik qilish</button>
+        </div>
+      </aside>
+      <div class="w-full md:w-3/4"><div id="productsGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="custom-order" class="py-16 bg-white border-t">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="bg-slate-900 rounded-3xl shadow-2xl p-8 md:p-12 max-w-2xl mx-auto">
+      <h2 class="text-3xl font-extrabold text-white mb-4">Orzuingizdagi mebel topilmadimi?</h2>
+      <p class="text-slate-300 mb-6">G'oyangizni yozing, ustalarimiz narxini hisoblab berishadi.</p>
+      <div class="space-y-3">
+        <div><label for="customName" class="text-sm text-slate-300">Ismingiz</label><input id="customName" class="inp bg-slate-800 border-slate-600 text-white"></div>
+        <div><label for="customDesc" class="text-sm text-slate-300">Qanday mebel kerak? Rangi, o'lchami...</label><textarea id="customDesc" class="inp bg-slate-800 border-slate-600 text-white h-24"></textarea></div>
+        <p id="customErr" class="text-sm text-red-400" role="alert"></p>
+        <button id="customSend" class="btn btn-o">Matnni nusxalash va Telegramga o'tish</button>
+        <p class="text-xs text-slate-400">Rasmni Telegramda o'zingiz biriktirasiz.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="gallery" class="py-16 bg-slate-50">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="text-center mb-12"><h2 class="text-3xl font-bold">Namuna ishlar 🏠</h2><p class="mt-4 text-slate-600">Demo rasmlar. Haqiqiy mijoz suratlari keyin qo'shiladi.</p></div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 auto-rows-[200px]">
+      <figure class="col-span-2 row-span-2 relative overflow-hidden rounded-2xl shadow-md"><img src="https://placehold.co/600x600/e2e8f0/475569?text=Namuna+1" alt="Namuna: yotoqxona mebeli" class="w-full h-full object-cover"><figcaption class="absolute inset-x-0 bottom-0 bg-black/60 text-white p-4 font-bold">Yotoqxona to'plami</figcaption></figure>
+      <figure class="relative overflow-hidden rounded-2xl shadow-md"><img src="https://placehold.co/300x300/f1f5f9/64748b?text=Stol" alt="Namuna: loft stol" class="w-full h-full object-cover"><figcaption class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs p-2">Loft stol</figcaption></figure>
+      <figure class="relative overflow-hidden rounded-2xl shadow-md"><img src="https://placehold.co/300x300/cbd5e1/334155?text=Oshxona" alt="Namuna: oshxona mebeli" class="w-full h-full object-cover"><figcaption class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs p-2">Oshxona mebeli</figcaption></figure>
+      <figure class="relative overflow-hidden rounded-2xl shadow-md"><img src="https://placehold.co/300x300/e2e8f0/1e293b?text=Ofis" alt="Namuna: ofis to'plami" class="w-full h-full object-cover"><figcaption class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs p-2">Ofis to'plami</figcaption></figure>
+      <figure class="relative overflow-hidden rounded-2xl shadow-md"><img src="https://placehold.co/300x300/f8fafc/94a3b8?text=Bolalar" alt="Namuna: bolalar xonasi" class="w-full h-full object-cover"><figcaption class="absolute inset-x-0 bottom-0 bg-black/60 text-white text-xs p-2">Bolalar xonasi</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<footer class="bg-slate-900 text-white py-12">
+  <div class="max-w-7xl mx-auto px-4 text-center">
+    <h2 class="text-2xl font-bold mb-4">LOFTBEDS</h2>
+    <div class="flex flex-wrap justify-center gap-6 mb-8 text-sm">
+      <button data-open="artisanModal" class="text-orange-400 font-bold hover:text-white">Korxonalar uchun</button>
+      <button data-open="artisanModal" class="text-orange-400 font-bold hover:text-white">Ustalar uchun</button>
+      <a href="/privacy" class="text-slate-400 hover:text-white">Maxfiylik siyosati</a>
+    </div>
+    <div class="border-t border-slate-800 pt-8 text-sm text-slate-400">&copy; 2026 LOFTBEDS (demo)</div>
+  </div>
+</footer>
+
+<script>
+/* Telegram tokeni va admin ID bu faylda YO'Q. Xabarlarni backend yuboradi. */
+const REGIONS = ["Toshkent shahri","Toshkent viloyati","Andijon","Buxoro","Farg'ona","Jizzax","Xorazm","Namangan","Navoiy","Qashqadaryo","Qoraqalpog'iston Res.","Samarqand","Sirdaryo","Surxondaryo"];
+const RATES = {3:1.10, 6:1.20, 12:1.35};   // yagona nasiya foizlari (keyin serverdan oling)
+const $ = id => document.getElementById(id);
+const fmt = n => new Intl.NumberFormat('uz-UZ').format(Math.round(n)) + " so'm";
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeImg = u => /^https?:\/\//i.test(u) || (typeof u === 'string' && u.startsWith('/')) ? u : '';
+const phoneOk = p => /^\+?998\d{9}$/.test(p.replace(/[\s()-]/g, ''));
+
+let products = [], cart = [];
+try { cart = JSON.parse(localStorage.getItem('lb_cart') || '[]'); } catch (e) { cart = []; }
+const saveCart = () => { try { localStorage.setItem('lb_cart', JSON.stringify(cart)); } catch (e) {} };
+
+async function api(url, body) {
+  const r = await fetch(url, body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : undefined);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+/* ---- Modal boshqaruvi ---- */
+let lastFocus = null;
+function openM(id) {
+  lastFocus = document.activeElement;
+  const el = $(id);
+  el.classList.contains('modal') ? el.classList.add('open') : el.classList.remove('hidden');
+  (el.querySelector('input,select,button:not([data-close])') || el).focus?.();
+}
+function closeM(id) {
+  const el = $(id);
+  el.classList.contains('modal') ? el.classList.remove('open') : el.classList.add('hidden');
+  lastFocus?.focus?.();
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-open],[data-close],[data-go],[data-ptype],[data-m]');
+  if (!t) return;
+  if (t.dataset.open) openM(t.dataset.open);
+  else if (t.dataset.close) closeM(t.dataset.close);
+  else if (t.dataset.go) goStep(+t.dataset.go);
+  else if (t.dataset.ptype) setPartnerType(t.dataset.ptype);
+  else if (t.dataset.m) calcInstallment(+t.dataset.m);
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  ['checkoutModal','artisanModal','cartDrawer'].forEach(id => {
+    const el = $(id); if (el.classList.contains('open') || (id === 'cartDrawer' && !el.classList.contains('hidden'))) closeM(id);
+  });
+});
+
+/* ---- Hududlar va mahsulotlar ---- */
+function populateRegions() {
+  const opts = REGIONS.map(r => `<option>${esc(r)}</option>`).join('');
+  $('regionSelect').innerHTML = `<option value="all">Barcha hududlar</option>` + opts;
+  $('artisanRegion').innerHTML = opts;
+  $('checkoutRegion').innerHTML = opts;
+}
+async function loadProducts() {
+  $('productsGrid').innerHTML = `<p class="col-span-full text-center text-slate-500 py-10">Yuklanmoqda...</p>`;
+  try { products = await api('/api/market-products/'); }
+  catch (e) { products = []; $('productsGrid').innerHTML = `<p class="col-span-full text-center text-red-600 py-10">Mahsulotlarni yuklab bo'lmadi. Sahifani yangilang.</p>`; return; }
+  renderProducts();
+  cart = cart.filter(i => products.some(p => p.id === i.id));   // eskirgan savat elementlarini olib tashlash
+  updateCartUI();
+}
+function renderProducts() {
+  const grid = $('productsGrid'), f = $('regionSelect').value;
+  const list = f === 'all' ? products : products.filter(p => p.region === f);
+  if (!list.length) {
+    grid.innerHTML = `<div class="col-span-full bg-white p-8 rounded-2xl border-2 border-dashed border-blue-200 text-center">
+      <div class="text-5xl mb-4">📍</div><h3 class="text-xl font-bold mb-2">Bu hududda hali hamkorimiz yo'q</h3>
+      <p class="text-slate-500 mb-6">Siz bu hududdagi birinchi rasmiy ishlab chiqaruvchi bo'lishingiz mumkin.</p>
+      <button data-open="artisanModal" class="bg-blue-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-blue-700">Hamkorlik so'rovini yuborish</button></div>`;
+    return;
+  }
+  grid.innerHTML = list.map(p => `
+    <article class="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-lg transition-shadow flex flex-col">
+      <div class="h-48 relative"><img src="${esc(safeImg(p.img))}" alt="${esc(p.name)}" loading="lazy" class="w-full h-full object-cover">
+        <span class="absolute top-2 left-2 bg-white/90 text-xs font-bold px-2 py-1 rounded">📍 ${esc(p.region)}</span>
+        <span class="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">⭐ ${esc(p.rating)}</span></div>
+      <div class="p-4 flex flex-col flex-1">
+        <h3 class="font-bold text-lg mb-1">${esc(p.name)}</h3>
+        <p class="text-xs text-slate-500 mb-2">🔨 ${esc(p.artisan)} ${p.verified ? '<span title="Tekshirilgan usta">✅</span>' : ''}</p>
+        <div class="mt-auto">
+          <div class="text-orange-600 font-bold text-lg">${fmt(p.price)}</div>
+          <div class="text-xs text-slate-500 mb-2">yoki oyiga <b class="bg-slate-100 px-1 rounded">${fmt(p.price * RATES[12] / 12)}</b> dan (12 oy)</div>
+          <button data-add="${Number(p.id)}" class="w-full bg-slate-800 hover:bg-orange-600 text-white py-2 rounded-lg text-sm font-medium">Savatga qo'shish</button>
+        </div></div>
+    </article>`).join('');
+}
+$('regionSelect').addEventListener('change', renderProducts);
+$('productsGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-add]'); if (!b) return;
+  const id = +b.dataset.add, it = cart.find(i => i.id === id);
+  it ? it.qty++ : cart.push({id, qty:1});
+  updateCartUI();
+  b.textContent = "✓ Qo'shildi"; setTimeout(() => b.textContent = "Savatga qo'shish", 900);
+});
+
+/* ---- Savat ---- */
+const cartTotal = () => cart.reduce((s, i) => s + (products.find(p => p.id === i.id)?.price || 0) * i.qty, 0);
+function updateCartUI() {
+  saveCart();
+  const n = cart.reduce((s, i) => s + i.qty, 0);
+  $('cartCount').textContent = n; $('cartCount').classList.toggle('hidden', !n);
+  $('checkoutBtn').disabled = !n;
+  const box = $('cartItems');
+  if (!n) { box.innerHTML = `<div class="text-center text-slate-400 py-16"><div class="text-4xl mb-2">🕸</div>Savat bo'sh</div>`; }
+  else box.innerHTML = cart.map(i => {
+    const p = products.find(x => x.id === i.id); if (!p) return '';
+    return `<div class="flex items-center border p-2 rounded-lg gap-3">
+      <img src="${esc(safeImg(p.img))}" alt="" class="w-12 h-12 object-cover rounded">
+      <div class="flex-1 min-w-0"><div class="text-sm font-bold truncate">${esc(p.name)}</div><div class="text-xs text-orange-600">${fmt(p.price)}</div></div>
+      <div class="flex items-center gap-1">
+        <button data-q="${i.id}:-1" aria-label="Kamaytirish" class="w-7 h-7 rounded bg-slate-100 hover:bg-slate-200">−</button>
+        <span class="w-6 text-center text-sm">${i.qty}</span>
+        <button data-q="${i.id}:1" aria-label="Ko'paytirish" class="w-7 h-7 rounded bg-slate-100 hover:bg-slate-200">+</button></div></div>`;
+  }).join('');
+  $('cartTotal').textContent = $('checkoutTotal').textContent = fmt(cartTotal());
+}
+$('cartItems').addEventListener('click', e => {
+  const b = e.target.closest('[data-q]'); if (!b) return;
+  const [id, d] = b.dataset.q.split(':').map(Number), it = cart.find(i => i.id === id);
+  it.qty += d; if (it.qty <= 0) cart = cart.filter(i => i !== it);
+  updateCartUI();
+});
+$('cartBtn').onclick = () => openM('cartDrawer');
+$('checkoutBtn').onclick = () => { closeM('cartDrawer'); openM('checkoutModal'); goStep(1); };
+
+/* ---- Checkout bosqichlari (har bosqich tekshiriladi) ---- */
+const LABELS = ["1. Ma'lumot", "2. Manzil", "3. To'lov"];
+function goStep(step) {
+  const cur = ['s1','s2','s3'].findIndex(id => !$(id).classList.contains('hidden')) + 1;
+  document.querySelectorAll('.stepErr').forEach(e => e.textContent = '');
+  if (step > cur && cur === 1) {
+    if (!$('custName').value.trim() || !phoneOk($('custPhone').value)) return $('s1').querySelector('.stepErr').textContent = "Ism va to'g'ri telefon raqamini kiriting (+998XXXXXXXXX).";
+  }
+  if (step > cur && cur === 2) {
+    if (!$('custDistrict').value.trim() || !$('custAddress').value.trim()) return $('s2').querySelector('.stepErr').textContent = "Tuman va aniq manzilni kiriting.";
+  }
+  ['s1','s2','s3','sOk'].forEach(id => $(id).classList.add('hidden'));
+  $(step === 'ok' ? 'sOk' : 's' + step).classList.remove('hidden');
+  for (let i = 1; i <= 3; i++) {
+    const t = $('tab' + i);
+    t.className = 'flex-1 p-3 text-center text-sm border-b-2 ' + (i < step ? 'step-done' : i === step ? 'step-active' : 'border-transparent text-slate-500');
+    t.textContent = i < step ? '✓ ' + LABELS[i-1] : LABELS[i-1];
+  }
+  if (step === 3) updateInstallmentUI();
+}
+const method = () => document.querySelector('input[name="payment"]:checked').value;
+let months = 6;
+function updateInstallmentUI() {
+  $('installmentCalc').classList.toggle('hidden', method() !== 'nasiya');
+  if (method() === 'nasiya') calcInstallment(months);
+}
+function calcInstallment(m) {
+  months = m;
+  document.querySelectorAll('.inst-btn').forEach(b => b.classList.toggle('bg-orange-500', +b.dataset.m === m));
+  document.querySelectorAll('.inst-btn').forEach(b => b.classList.toggle('bg-slate-700', +b.dataset.m !== m));
+  $('monthlyPayment').textContent = fmt(cartTotal() * RATES[m] / m);
+}
+$('payOptions').addEventListener('change', updateInstallmentUI);
+
+/* ---- Buyurtma: narxni va Telegram xabarini SERVER hisoblaydi/yuboradi ---- */
+$('mainSubmitBtn').onclick = async () => {
+  const btn = $('mainSubmitBtn'), err = $('orderErr'); err.textContent = '';
+  if (!cart.length) return err.textContent = "Savat bo'sh.";
+  btn.disabled = true; btn.textContent = 'Yuborilmoqda...';
+  try {
+    const res = await api('/orders/', {
+      customer_name: $('custName').value.trim(),
+      customer_phone: $('custPhone').value.trim(),
+      delivery_address: [$('checkoutRegion').value, $('custDistrict').value.trim(), $('custAddress').value.trim()].join(', '),
+      payment: method(),
+      installment_months: method() === 'nasiya' ? months : 0,
+      items: cart.map(i => ({product_id: i.id, quantity: i.qty}))
+    });
+    $('orderNo').textContent = '#LB-' + res.id;
+    goStep('ok'); cart = []; updateCartUI();
+  } catch (e) {
+    err.textContent = "Buyurtmani yuborib bo'lmadi. Internetni tekshirib, qayta urinib ko'ring.";
+  } finally { btn.disabled = false; btn.textContent = 'Buyurtmani tasdiqlash'; }
+};
+
+/* ---- Hamkorlik ---- */
+let ptype = 'master';
+function setPartnerType(t) {
+  ptype = t;
+  $('btn-master').className = 'flex-1 py-2 text-sm font-bold rounded-md ' + (t === 'master' ? 'bg-white shadow-sm' : 'text-slate-500');
+  $('btn-factory').className = 'flex-1 py-2 text-sm font-bold rounded-md ' + (t === 'factory' ? 'bg-white shadow-sm' : 'text-slate-500');
+  $('factoryField').classList.toggle('hidden', t === 'master');
+}
+$('artisanForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('artisanErr'), btn = $('artisanSubmit'); err.textContent = '';
+  if ($('hp').value) return;                                  // bot tuzog'i
+  if ($('artisanName').value.trim().length < 3 || !phoneOk($('artisanPhone').value)) return err.textContent = "Ism va to'g'ri telefon raqamini kiriting.";
+  if (ptype === 'factory' && !$('factoryName').value.trim()) return err.textContent = "Korxona nomini kiriting.";
+  btn.disabled = true; btn.textContent = '⏳ Yuborilmoqda...';
+  try {
+    await api('/api/partners/', {
+      partner_type: ptype === 'factory' ? 'Korxona/Fabrika' : 'Usta (Individual)',
+      name: $('artisanName').value.trim(),
+      factory_name: ptype === 'factory' ? $('factoryName').value.trim() : '',
+      phone: $('artisanPhone').value.trim(),
+      region: $('artisanRegion').value,
+      product_type: $('artisanProduct').value
+    });
+    $('artisanForm').reset(); closeM('artisanModal');
+    alert("Arizangiz qabul qilindi. Menejerlarimiz tez orada bog'lanadi.");
+  } catch (x) { err.textContent = "Yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring."; }
+  finally { btn.disabled = false; btn.textContent = '📨 Ariza yuborish'; }
+});
+
+/* ---- Individual buyurtma (rasm Telegramda biriktiriladi) ---- */
+$('customSend').onclick = async () => {
+  const n = $('customName').value.trim(), d = $('customDesc').value.trim(), err = $('customErr');
+  if (!n || !d) return err.textContent = "Ism va buyurtma tavsifini yozing.";
+  err.textContent = '';
+  try { await navigator.clipboard.writeText(`Individual buyurtma\nIsm: ${n}\nTavsif: ${d}`); } catch (e) {}
+  window.open('https://t.me/sherxanoff', '_blank', 'noopener');
+};
+
+/* ---- Grafik: faqat so'm (muddat matnda berilgan) ---- */
+window.addEventListener('load', () => {
+  populateRegions(); setPartnerType('master'); updateCartUI(); loadProducts();
+  new Chart($('logisticsChart'), {
+    type: 'bar',
+    data: { labels: ['Mahsulot narxi', 'Yetkazish narxi'], datasets: [
+      { label: 'Toshkentdan', data: [2500000, 500000], backgroundColor: 'rgba(148,163,184,.8)' },
+      { label: 'LOFTBEDS (mahalliy)', data: [1800000, 50000], backgroundColor: 'rgba(234,88,12,.85)' } ] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { tooltip: { callbacks: { label: c => ' ' + fmt(c.parsed.y) } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v / 1e6 + ' mln' } } } }
+  });
+});
+</script>
+</body>
+</html>
